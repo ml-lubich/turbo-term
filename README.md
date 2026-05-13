@@ -42,6 +42,7 @@ flowchart LR
 - [Setup pipeline (sequence)](#setup-pipeline-sequence)
 - [Plugin activation order](#plugin-activation-order)
 - [🗺️ Repository map](#️-repository-map)
+- [📊 Code composition](#-code-composition)
 
 ## Setup pipeline (sequence)
 
@@ -108,4 +109,15 @@ mindmap
   root((turbo-term))
     files
       README.md
+```
+
+
+## 📊 Code composition
+
+File-type breakdown of source under this repo (skips `.git`, `node_modules`, build caches, lockfiles).
+
+```mermaid
+pie showData title File-type composition of turbo-term (2 files)
+    "Shell" : 1
+    "Markdown" : 1
 ```
