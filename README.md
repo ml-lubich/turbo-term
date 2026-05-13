@@ -39,6 +39,46 @@ flowchart LR
 
 - [Features](#features)
 - [Installation](#installation)
+- [Setup pipeline (sequence)](#setup-pipeline-sequence)
+- [Plugin activation order](#plugin-activation-order)
+
+## Setup pipeline (sequence)
+
+```mermaid
+sequenceDiagram
+    participant U as user
+    participant SH as setup.sh
+    participant FS as ~/
+    participant BR as Homebrew
+    participant OMZ as Oh My Zsh
+    participant P10K as Powerlevel10k
+
+    U->>SH: ./setup.sh
+    SH->>FS: cp ~/.zshrc -> .zshrc.backup
+    SH->>FS: cp ~/.zprofile -> .zprofile.backup
+    SH->>BR: install brew (if missing)
+    SH->>BR: brew install tmux vim neovim git fzf
+    SH->>OMZ: curl install script
+    OMZ->>FS: write ~/.oh-my-zsh
+    SH->>P10K: clone theme into ~/.oh-my-zsh/custom/themes
+    SH->>FS: clone zsh-syntax-highlighting + autosuggestions
+    SH->>FS: write merged ~/.zshrc
+    SH-->>U: restart shell
+```
+
+## Plugin activation order
+
+```mermaid
+flowchart LR
+    A([new zsh])
+    B["~/.zshrc"]
+    C["plugins=(git fzf zsh-autosuggestions zsh-syntax-highlighting)"]
+    D["source $ZSH/oh-my-zsh.sh"]
+    E["Powerlevel10k theme"]
+    F["fzf keybindings + completion"]
+    Z([prompt ready])
+    A --> B --> C --> D --> E --> F --> Z
+```
 
 ## Features
 - **Automated Zsh Setup**: Installs and configures Zsh with Oh My Zsh.
