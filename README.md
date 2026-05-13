@@ -41,6 +41,7 @@ flowchart LR
 - [Installation](#installation)
 - [Setup pipeline (sequence)](#setup-pipeline-sequence)
 - [Plugin activation order](#plugin-activation-order)
+- [🗺️ Repository map](#️-repository-map)
 
 ## Setup pipeline (sequence)
 
@@ -95,4 +96,16 @@ flowchart LR
 ```bash
 git clone https://github.com/your-username/turboenhance.git
 cd turboenhance
+```
+
+
+## 🗺️ Repository map
+
+Top-level layout of `turbo-term` rendered as a Mermaid mindmap (auto-generated from the on-disk tree).
+
+```mermaid
+mindmap
+  root((turbo-term))
+    files
+      README.md
 ```
