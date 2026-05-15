@@ -6,6 +6,26 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Linux support** (Debian/Ubuntu via apt, Fedora via dnf, Arch via
+  pacman). Cross-platform `pkg_install` helper abstracts the package
+  manager so the rest of the script stays single-track.
+- Linux font install path: downloads the four official MesloLGS NF
+  variants to `~/.local/share/fonts` and runs `fc-cache -f`.
+- Linux `chsh` step that switches the login shell to zsh when
+  `/etc/shells` already lists it.
+- Managed `~/.zshrc` block now probes for Homebrew under
+  `/opt/homebrew`, `/usr/local`, **and** `/home/linuxbrew/.linuxbrew`,
+  and sources zsh plugins / fzf keybindings from any standard install
+  path on either OS.
+
+### Changed
+- Pre-flight no longer hard-fails on Linux. macOS-only steps (iTerm2,
+  Terminal.app, duti, PlistBuddy) are now gated behind
+  `if [[ "$OS" == "macos" ]]` and skipped on Linux.
+- Backup prompt is skipped on re-run when `~/.zshrc.backup` already
+  exists (was previously prompting every run).
+
 ## [0.1.0] - 2026-05-15
 
 ### Added

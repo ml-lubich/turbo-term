@@ -1,173 +1,270 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
+# turbo-term setup.sh — idempotent terminal bootstrapper for macOS and Linux.
+# Re-runnable. Preserves user customizations in ~/.zshrc.
 
-# Check if running on macOS
-if [[ "$OSTYPE" != "darwin"* ]]; then
-    echo "This script can only be run on macOS."
-    exit 1
+set -u
+
+# ---------------------------------------------------------------------------
+# OS detection
+# ---------------------------------------------------------------------------
+OS=""
+DISTRO=""
+case "$OSTYPE" in
+    darwin*) OS="macos" ;;
+    linux*)  OS="linux" ;;
+    *)
+        echo "Unsupported OS: $OSTYPE (supported: macOS, Linux)."
+        exit 1
+        ;;
+esac
+
+if [[ "$OS" == "linux" ]]; then
+    if command -v apt-get &>/dev/null;  then DISTRO="debian"
+    elif command -v dnf &>/dev/null;     then DISTRO="fedora"
+    elif command -v pacman &>/dev/null;  then DISTRO="arch"
+    else
+        echo "Linux detected but no supported package manager (apt/dnf/pacman)."
+        echo "Install zsh, git, curl, fzf, tmux, vim manually, then re-run."
+        DISTRO="unknown"
+    fi
 fi
 
-# Ensure the script is running in Zsh
-if [ -n "$BASH_VERSION" ]; then
+echo "Detected: OS=$OS${DISTRO:+ DISTRO=$DISTRO}"
+
+# Ensure the script is running in Zsh (re-exec under zsh if started via bash).
+if [ -n "${BASH_VERSION:-}" ]; then
     echo "Switching to Zsh..."
     exec zsh "$0" "$@"
-    exit
 fi
 
-# Backup .zshrc and .zprofile
-read -q "yn?Do you want to backup your current .zshrc and .zprofile? (y/n) "
-echo
-if [[ "$yn" =~ [Yy] ]]; then
-    cp ~/.zshrc ~/.zshrc.backup && cp ~/.zprofile ~/.zprofile.backup
-    echo "Backups created at ~/.zshrc.backup and ~/.zprofile.backup"
-else
-    echo "Skipping backup."
-fi
-
-# Function to add Homebrew to PATH only if it's not already present
-add_homebrew_to_path() {
-    if [[ ":$PATH:" != *":/opt/homebrew/bin:"* ]]; then
-        echo "Adding Homebrew to PATH in .zprofile and .zshrc..."
-        echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
-        echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zshrc
-        eval "$(/opt/homebrew/bin/brew shellenv)"
+# ---------------------------------------------------------------------------
+# Sudo helper (Linux only). On macOS, Homebrew handles privilege itself.
+# ---------------------------------------------------------------------------
+SUDO=""
+if [[ "$OS" == "linux" ]] && [ "$(id -u)" -ne 0 ]; then
+    if command -v sudo &>/dev/null; then
+        SUDO="sudo"
     else
-        echo "Homebrew is already in the PATH!"
+        echo "WARNING: not root and sudo missing — package installs will fail."
     fi
+fi
+
+# ---------------------------------------------------------------------------
+# Cross-platform package installer
+# ---------------------------------------------------------------------------
+pkg_install() {
+    # Usage: pkg_install <macos-brew-pkg> <debian-pkg> <fedora-pkg> <arch-pkg>
+    # Pass "-" to skip a platform.
+    local mac_pkg="$1" deb_pkg="$2" fed_pkg="$3" arch_pkg="$4"
+    case "$OS" in
+        macos)
+            [[ "$mac_pkg" == "-" ]] && return 0
+            brew list "$mac_pkg" &>/dev/null && return 0
+            brew install "$mac_pkg"
+            ;;
+        linux)
+            case "$DISTRO" in
+                debian)
+                    [[ "$deb_pkg" == "-" ]] && return 0
+                    dpkg -s "$deb_pkg" &>/dev/null && return 0
+                    $SUDO apt-get install -y "$deb_pkg"
+                    ;;
+                fedora)
+                    [[ "$fed_pkg" == "-" ]] && return 0
+                    rpm -q "$fed_pkg" &>/dev/null && return 0
+                    $SUDO dnf install -y "$fed_pkg"
+                    ;;
+                arch)
+                    [[ "$arch_pkg" == "-" ]] && return 0
+                    pacman -Q "$arch_pkg" &>/dev/null && return 0
+                    $SUDO pacman -S --noconfirm --needed "$arch_pkg"
+                    ;;
+            esac
+            ;;
+    esac
 }
 
-# Install Homebrew if not already installed
-if ! command -v brew &> /dev/null; then
-    echo "Homebrew not found, installing..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    add_homebrew_to_path
-else
-    echo "Homebrew is already installed!"
-    add_homebrew_to_path
+# ---------------------------------------------------------------------------
+# Backup .zshrc / .zprofile
+# ---------------------------------------------------------------------------
+if [ -f "$HOME/.zshrc" ] || [ -f "$HOME/.zprofile" ]; then
+    if [ ! -f "$HOME/.zshrc.backup" ] && [ ! -f "$HOME/.zprofile.backup" ]; then
+        read -q "yn?Back up current .zshrc and .zprofile? (y/n) "
+        echo
+        if [[ "$yn" =~ [Yy] ]]; then
+            [ -f "$HOME/.zshrc" ]    && cp "$HOME/.zshrc"    "$HOME/.zshrc.backup"
+            [ -f "$HOME/.zprofile" ] && cp "$HOME/.zprofile" "$HOME/.zprofile.backup"
+            echo "Backups created at ~/.zshrc.backup and ~/.zprofile.backup"
+        else
+            echo "Skipping backup."
+        fi
+    else
+        echo "Backups already exist; skipping."
+    fi
 fi
 
-# Install Zsh and Oh My Zsh
-if ! command -v zsh &> /dev/null; then
-    echo "Installing Zsh..."
-    brew install zsh
-else
-    echo "Zsh is already installed!"
+# ---------------------------------------------------------------------------
+# macOS: install Homebrew
+# Linux: refresh package metadata
+# ---------------------------------------------------------------------------
+if [[ "$OS" == "macos" ]]; then
+    add_homebrew_to_path() {
+        if [[ ":$PATH:" != *":/opt/homebrew/bin:"* ]]; then
+            echo "Adding Homebrew to PATH in .zprofile..."
+            echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        fi
+    }
+    if ! command -v brew &>/dev/null; then
+        echo "Homebrew not found, installing..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    fi
+    add_homebrew_to_path
+elif [[ "$OS" == "linux" && "$DISTRO" == "debian" ]]; then
+    $SUDO apt-get update -y
 fi
 
-# Install Oh My Zsh
+# ---------------------------------------------------------------------------
+# Core CLI tools (cross-platform)
+# ---------------------------------------------------------------------------
+echo "Installing core tools..."
+pkg_install zsh        zsh        zsh        zsh
+pkg_install git        git        git        git
+pkg_install curl       curl       curl       curl
+pkg_install tmux       tmux       tmux       tmux
+pkg_install vim        vim        vim        vim
+pkg_install neovim     neovim     neovim     neovim
+pkg_install fzf        fzf        fzf        fzf
+pkg_install autojump   autojump   autojump   autojump
+# zsh plugins: Homebrew packages on mac, distro packages on Linux where available.
+pkg_install zsh-syntax-highlighting  zsh-syntax-highlighting  zsh-syntax-highlighting  zsh-syntax-highlighting
+pkg_install zsh-autosuggestions      zsh-autosuggestions      zsh-autosuggestions      zsh-autosuggestions
+# eza (modern ls). Debian package is "eza" on bookworm-backports / trixie+.
+pkg_install eza        eza        eza        eza
+
+# ---------------------------------------------------------------------------
+# Oh My Zsh
+# ---------------------------------------------------------------------------
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
     echo "Installing Oh My Zsh..."
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+    RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 else
-    echo "Oh My Zsh is already installed!"
+    echo "Oh My Zsh already installed."
 fi
 
-# Install Powerlevel10k theme for Oh My Zsh
-if [ ! -d "$HOME/.oh-my-zsh/custom/themes/powerlevel10k" ]; then
+# ---------------------------------------------------------------------------
+# Powerlevel10k
+# ---------------------------------------------------------------------------
+P10K_DIR="$HOME/.oh-my-zsh/custom/themes/powerlevel10k"
+if [ ! -d "$P10K_DIR" ]; then
     echo "Installing Powerlevel10k theme..."
-    git clone --depth=1 https://github.com/romkatv/powerlevel10k.git $HOME/.oh-my-zsh/custom/themes/powerlevel10k
+    git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$P10K_DIR"
 else
-    echo "Powerlevel10k theme is already installed!"
+    echo "Powerlevel10k already installed."
 fi
 
-# Install useful plugins and tools
-echo "Installing useful plugins and tools..."
-brew install fzf autojump zsh-syntax-highlighting zsh-autosuggestions
-
-# Install MesloLGS Nerd Font family (required by Powerlevel10k for icons).
-# The Homebrew cask installs the full family. We configure iTerm2 to use
-# "MesloLGSDZ Nerd Font" (PostScript: MesloLGSDZNF-Regular):
-#   LGS  = small line gap (p10k recommended)
-#   DZ   = dotted/slashed zero
-#   no Mono suffix = double-width icons (best icon rendering)
-# Do NOT also pull the legacy "MesloLGS NF" files from powerlevel10k-media
-# (PostScript "MesloLGS-NF-Regular") — they shadow the cask font and break
-# icon rendering.
-echo "Installing MesloLGS Nerd Font (required by Powerlevel10k)..."
-if brew list --cask font-meslo-lg-nerd-font &>/dev/null; then
-    echo "MesloLGS Nerd Font already installed!"
-else
-    brew install --cask font-meslo-lg-nerd-font
-fi
-
-# Remove any stale "MesloLGS NF" files from prior runs of this script so
-# they cannot shadow the cask font.
-FONT_DIR="$HOME/Library/Fonts"
-for stale in \
-    "MesloLGS NF Regular.ttf" \
-    "MesloLGS NF Bold.ttf" \
-    "MesloLGS NF Italic.ttf" \
-    "MesloLGS NF Bold Italic.ttf" \
-    "MesloLGS%20NF%20Regular.ttf" \
-    "MesloLGS%20NF%20Bold.ttf" \
-    "MesloLGS%20NF%20Italic.ttf" \
-    "MesloLGS%20NF%20Bold%20Italic.ttf"; do
-    if [ -f "$FONT_DIR/$stale" ]; then
-        echo "Removing stale font: $stale"
-        rm -f "$FONT_DIR/$stale"
+# ---------------------------------------------------------------------------
+# MesloLGS Nerd Font
+#   macOS: Homebrew cask + purge legacy MesloLGS NF *.ttf shadows.
+#   Linux: download official p10k variants to ~/.local/share/fonts and
+#          refresh fontconfig cache.
+# ---------------------------------------------------------------------------
+echo "Installing MesloLGS Nerd Font..."
+if [[ "$OS" == "macos" ]]; then
+    if brew list --cask font-meslo-lg-nerd-font &>/dev/null; then
+        echo "MesloLGS Nerd Font already installed."
+    else
+        brew install --cask font-meslo-lg-nerd-font
     fi
-done
-echo "MesloLGS Nerd Font ready (using MesloLGSDZ Nerd Font)."
-
-# Install iTerm2 and configure it to use MesloLGS Nerd Font
-if [ ! -d "/Applications/iTerm.app" ] && ! brew list --cask iterm2 &>/dev/null; then
-    echo "Installing iTerm2..."
-    brew install --cask iterm2
+    # Purge legacy "MesloLGS NF" files that shadow the cask font (icons break).
+    FONT_DIR="$HOME/Library/Fonts"
+    for stale in \
+        "MesloLGS NF Regular.ttf" \
+        "MesloLGS NF Bold.ttf" \
+        "MesloLGS NF Italic.ttf" \
+        "MesloLGS NF Bold Italic.ttf" \
+        "MesloLGS%20NF%20Regular.ttf" \
+        "MesloLGS%20NF%20Bold.ttf" \
+        "MesloLGS%20NF%20Italic.ttf" \
+        "MesloLGS%20NF%20Bold%20Italic.ttf"; do
+        if [ -f "$FONT_DIR/$stale" ]; then
+            echo "Removing stale font: $stale"
+            rm -f "$FONT_DIR/$stale"
+        fi
+    done
 else
-    echo "iTerm2 already installed!"
+    FONT_DIR="$HOME/.local/share/fonts"
+    mkdir -p "$FONT_DIR"
+    P10K_FONT_BASE="https://github.com/romkatv/powerlevel10k-media/raw/master"
+    installed_any=0
+    for font_file in \
+        "MesloLGS%20NF%20Regular.ttf" \
+        "MesloLGS%20NF%20Bold.ttf" \
+        "MesloLGS%20NF%20Italic.ttf" \
+        "MesloLGS%20NF%20Bold%20Italic.ttf"; do
+        decoded_name="${font_file//%20/ }"
+        if [ ! -f "$FONT_DIR/$decoded_name" ]; then
+            echo "Downloading $decoded_name ..."
+            curl -fsSL "$P10K_FONT_BASE/$font_file" -o "$FONT_DIR/$decoded_name"
+            installed_any=1
+        fi
+    done
+    if [ "$installed_any" -eq 1 ] && command -v fc-cache &>/dev/null; then
+        echo "Refreshing fontconfig cache..."
+        fc-cache -f "$FONT_DIR"
+    fi
+    echo "MesloLGS NF installed to $FONT_DIR. Configure your terminal emulator"
+    echo "to use 'MesloLGS NF' (size 12-13)."
 fi
 
-echo "Configuring iTerm2 default profile to use MesloLGS NF 13pt..."
-# Quit iTerm2 if running so it does not overwrite our prefs on exit
-osascript -e 'tell application "iTerm2" to quit' >/dev/null 2>&1 || true
-sleep 1
+# ---------------------------------------------------------------------------
+# macOS-only: iTerm2 + Terminal.app + duti default-handler wiring
+# ---------------------------------------------------------------------------
+if [[ "$OS" == "macos" ]]; then
+    if [ ! -d "/Applications/iTerm.app" ] && ! brew list --cask iterm2 &>/dev/null; then
+        echo "Installing iTerm2..."
+        brew install --cask iterm2
+    else
+        echo "iTerm2 already installed."
+    fi
 
-# Make sure iTerm2 uses ~/Library/Preferences/com.googlecode.iterm2.plist
-# (not a custom folder) and re-read it on next launch.
-defaults write com.googlecode.iterm2 PrefsCustomFolder -string ""
-defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool false
+    echo "Configuring iTerm2 default profile..."
+    osascript -e 'tell application "iTerm2" to quit' >/dev/null 2>&1 || true
+    sleep 1
 
-# Patch the Default bookmark (profile) font keys. iTerm2 stores fonts as
-# "<PostScript name> <size>". MesloLGS NF PostScript name is "MesloLGS-NF".
-ITERM_PLIST="$HOME/Library/Preferences/com.googlecode.iterm2.plist"
-if [ -f "$ITERM_PLIST" ]; then
-    /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Normal Font\" 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST" 2>/dev/null \
-        || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Normal Font\" string 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST"
-    /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Non Ascii Font\" 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST" 2>/dev/null \
-        || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Non Ascii Font\" string 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST"
-    /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Use Non-ASCII Font\" true" "$ITERM_PLIST" 2>/dev/null \
-        || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Use Non-ASCII Font\" bool true" "$ITERM_PLIST"
-    echo "iTerm2 default profile font set to MesloLGS NF 13pt."
-fi
+    defaults write com.googlecode.iterm2 PrefsCustomFolder -string ""
+    defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool false
 
-# Force a proper dark color scheme on the iTerm2 Default profile so
-# Powerlevel10k's colored segments stay readable. Values are 0.0-1.0 floats
-# in iTerm2's "Background Color" / "Foreground Color" dict format.
-if [ -f "$ITERM_PLIST" ]; then
-    set_iterm_color() {
-        # $1 = key (e.g. "Background Color"), $2/$3/$4 = R/G/B floats
-        local key="$1" r="$2" g="$3" b="$4"
-        /usr/libexec/PlistBuddy -c "Delete :\"New Bookmarks\":0:\"$key\"" "$ITERM_PLIST" 2>/dev/null || true
-        /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\" dict" "$ITERM_PLIST"
-        /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\":\"Color Space\" string sRGB" "$ITERM_PLIST"
-        /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\":\"Red Component\"   real $r" "$ITERM_PLIST"
-        /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\":\"Green Component\" real $g" "$ITERM_PLIST"
-        /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\":\"Blue Component\"  real $b" "$ITERM_PLIST"
-        /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\":\"Alpha Component\" real 1"  "$ITERM_PLIST"
-    }
-    # Near-black background, off-white foreground (Dracula-ish).
-    set_iterm_color "Background Color" 0.117 0.121 0.149
-    set_iterm_color "Foreground Color" 0.972 0.972 0.949
-    set_iterm_color "Cursor Color"     0.972 0.972 0.949
-    set_iterm_color "Selection Color"  0.266 0.278 0.352
-    echo "iTerm2 default profile set to dark theme."
-else
-    echo "iTerm2 plist not found yet. Launch iTerm2 once, then re-run this script,"
-    echo "or set Settings > Profiles > Text > Font to 'MesloLGS NF' manually."
-fi
+    ITERM_PLIST="$HOME/Library/Preferences/com.googlecode.iterm2.plist"
+    if [ -f "$ITERM_PLIST" ]; then
+        /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Normal Font\" 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Normal Font\" string 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST"
+        /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Non Ascii Font\" 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Non Ascii Font\" string 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST"
+        /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Use Non-ASCII Font\" true" "$ITERM_PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Use Non-ASCII Font\" bool true" "$ITERM_PLIST"
+        echo "iTerm2 default profile font set to MesloLGSDZNF-Regular 13pt."
 
-# Also set the macOS built-in Terminal.app default profile to a dark theme
-# ("Pro" ships with macOS and is dark) and switch its font to MesloLGS NF.
-osascript <<'APPLESCRIPT' >/dev/null 2>&1 || true
+        set_iterm_color() {
+            local key="$1" r="$2" g="$3" b="$4"
+            /usr/libexec/PlistBuddy -c "Delete :\"New Bookmarks\":0:\"$key\"" "$ITERM_PLIST" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\" dict" "$ITERM_PLIST"
+            /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\":\"Color Space\" string sRGB" "$ITERM_PLIST"
+            /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\":\"Red Component\"   real $r" "$ITERM_PLIST"
+            /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\":\"Green Component\" real $g" "$ITERM_PLIST"
+            /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\":\"Blue Component\"  real $b" "$ITERM_PLIST"
+            /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"$key\":\"Alpha Component\" real 1"  "$ITERM_PLIST"
+        }
+        set_iterm_color "Background Color" 0.117 0.121 0.149
+        set_iterm_color "Foreground Color" 0.972 0.972 0.949
+        set_iterm_color "Cursor Color"     0.972 0.972 0.949
+        set_iterm_color "Selection Color"  0.266 0.278 0.352
+        echo "iTerm2 default profile set to dark theme."
+    else
+        echo "iTerm2 plist not found yet. Launch iTerm2 once, then re-run."
+    fi
+
+    osascript <<'APPLESCRIPT' >/dev/null 2>&1 || true
 tell application "Terminal"
     set default settings to settings set "Pro"
     set startup settings to settings set "Pro"
@@ -176,85 +273,57 @@ tell application "Terminal"
 end tell
 APPLESCRIPT
 
-# Make iTerm2 the default terminal application on macOS.
-# macOS does not expose a single "default terminal" toggle, so we register
-# iTerm2 as the LaunchServices handler for the shell-script and terminal
-# UTIs/URL schemes that Terminal.app normally owns. We use `duti` for this
-# (the standard tool for setting macOS default-app handlers from CLI).
-echo "Setting iTerm2 as the default terminal handler..."
-if ! command -v duti &>/dev/null; then
-    brew install duti
+    echo "Setting iTerm2 as the default terminal handler..."
+    if ! command -v duti &>/dev/null; then
+        brew install duti
+    fi
+    ITERM_BUNDLE_ID="com.googlecode.iterm2"
+    duti -s "$ITERM_BUNDLE_ID" public.unix-executable           all 2>/dev/null || true
+    duti -s "$ITERM_BUNDLE_ID" com.apple.terminal.shell-script  all 2>/dev/null || true
+    duti -s "$ITERM_BUNDLE_ID" public.shell-script              all 2>/dev/null || true
+    duti -s "$ITERM_BUNDLE_ID" terminal                             2>/dev/null || true
 fi
 
-ITERM_BUNDLE_ID="com.googlecode.iterm2"
-# Shell scripts (.sh, .command, .tool) and the terminal: URL scheme.
-duti -s "$ITERM_BUNDLE_ID" public.unix-executable           all 2>/dev/null || true
-duti -s "$ITERM_BUNDLE_ID" com.apple.terminal.shell-script  all 2>/dev/null || true
-duti -s "$ITERM_BUNDLE_ID" public.shell-script              all 2>/dev/null || true
-duti -s "$ITERM_BUNDLE_ID" terminal                                       2>/dev/null || true
+# ---------------------------------------------------------------------------
+# fzf keybindings + completion (non-interactive)
+# ---------------------------------------------------------------------------
+if [[ "$OS" == "macos" ]]; then
+    "$(brew --prefix)/opt/fzf/install" --all --no-bash --no-fish || true
+elif [ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]; then
+    echo "fzf keybindings provided by distro package; will be sourced from ~/.zshrc."
+fi
 
-# Also flip iTerm2's own "default term" preference so it stops nagging on launch.
-defaults write "$ITERM_BUNDLE_ID" "Default Bookmark Guid" -string "" 2>/dev/null || true
-defaults write "$ITERM_BUNDLE_ID" NoSyncHaveRequestedFullDiskAccess -bool true 2>/dev/null || true
-defaults write "$ITERM_BUNDLE_ID" NoSyncNeverRemindPrefsChangesLostForFile_selection -bool true 2>/dev/null || true
-
-echo "iTerm2 is now the default terminal handler."
-echo "Note: macOS has no global 'default terminal' switch — but .sh / .command files"
-echo "and 'open -a Terminal' equivalents will now route to iTerm2."
-
-# Install tmux for terminal multiplexing
-brew install tmux
-
-# Install Vim or Neovim
-brew install vim neovim
-
-# Install Git if not installed
-brew install git
-
-# Install fzf for fuzzy search and setup (non-interactive)
-"$(brew --prefix)/opt/fzf/install" --all --no-bash --no-fish
-
-echo "All tools are installed!"
-
-# Configuring Zsh environment
-echo "Configuring your Zsh environment..."
-
-# IDEMPOTENT, NON-DESTRUCTIVE ~/.zshrc setup.
-# We do NOT overwrite an existing ~/.zshrc. Instead we ensure a "TURBO-TERM"
-# managed block exists exactly once, and append it if missing. This protects
-# user customization (eza aliases, functions, exports, etc.) across re-runs.
-
+# ---------------------------------------------------------------------------
+# Idempotent ~/.zshrc managed block
+# ---------------------------------------------------------------------------
+echo "Configuring ~/.zshrc (managed block)..."
 ZSHRC="$HOME/.zshrc"
 TURBO_BEGIN="# >>> turbo-term managed block >>>"
-TURBO_END="# <<< turbo-term managed block <<<"
-
-# If file does not exist, create empty so grep/append work.
 [ -f "$ZSHRC" ] || touch "$ZSHRC"
-
-# Install eza if missing (gives `ls` icons + git status). Safe no-op if present.
-if ! command -v eza &>/dev/null; then
-    echo "Installing eza (modern ls with icons)..."
-    brew install eza
-fi
 
 if grep -q "$TURBO_BEGIN" "$ZSHRC"; then
     echo "turbo-term managed block already present in ~/.zshrc; leaving it."
 else
-    echo "Appending turbo-term managed block to ~/.zshrc (preserving existing content)..."
+    echo "Appending turbo-term managed block to ~/.zshrc..."
     cat <<'EOL' >> "$ZSHRC"
 
 # >>> turbo-term managed block >>>
 # Managed by turbo-term/setup.sh. Edit between the markers ABOVE/BELOW only.
 
-# Homebrew on Apple Silicon
-export PATH="/opt/homebrew/bin:$PATH"
+# Homebrew on PATH (covers Apple Silicon, Intel mac, and Linuxbrew).
+for brew_prefix in /opt/homebrew /usr/local /home/linuxbrew/.linuxbrew; do
+    if [ -x "$brew_prefix/bin/brew" ]; then
+        eval "$($brew_prefix/bin/brew shellenv)"
+        break
+    fi
+done
 
-# Powerlevel10k instant prompt (must stay near the top of the managed block)
+# Powerlevel10k instant prompt (must stay near the top of the managed block).
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# Skip Powerlevel10k first-run configuration wizard (preset is preinstalled)
+# Skip Powerlevel10k first-run configuration wizard (preset is preinstalled).
 POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
 
 # Oh My Zsh
@@ -263,16 +332,37 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 plugins=(git z fzf autojump)
 source "$ZSH/oh-my-zsh.sh"
 
-# Plugins from Homebrew
-[ -r /opt/homebrew/opt/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] \
-    && source /opt/homebrew/opt/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-[ -r /opt/homebrew/opt/zsh-syntax-highlighting/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] \
-    && source /opt/homebrew/opt/zsh-syntax-highlighting/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+# zsh-autosuggestions / zsh-syntax-highlighting from any of the common
+# install locations (Homebrew on macOS/Linuxbrew, apt on Debian/Ubuntu,
+# dnf on Fedora, pacman on Arch).
+for autosug in \
+    /opt/homebrew/opt/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh \
+    /usr/local/opt/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh \
+    /home/linuxbrew/.linuxbrew/opt/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh \
+    /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh \
+    /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh; do
+    [ -r "$autosug" ] && { source "$autosug"; break; }
+done
+for syntax in \
+    /opt/homebrew/opt/zsh-syntax-highlighting/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
+    /usr/local/opt/zsh-syntax-highlighting/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
+    /home/linuxbrew/.linuxbrew/opt/zsh-syntax-highlighting/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
+    /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
+    /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh; do
+    [ -r "$syntax" ] && { source "$syntax"; break; }
+done
 
-# fzf
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+# fzf — try the user-installed file first, then distro-provided examples.
+if [ -f ~/.fzf.zsh ]; then
+    source ~/.fzf.zsh
+else
+    [ -r /usr/share/doc/fzf/examples/key-bindings.zsh ] && source /usr/share/doc/fzf/examples/key-bindings.zsh
+    [ -r /usr/share/doc/fzf/examples/completion.zsh ]   && source /usr/share/doc/fzf/examples/completion.zsh
+    [ -r /usr/share/fzf/key-bindings.zsh ]              && source /usr/share/fzf/key-bindings.zsh
+    [ -r /usr/share/fzf/completion.zsh ]                && source /usr/share/fzf/completion.zsh
+fi
 
-# Modern ls replacement: eza (gives per-file icons in ls output)
+# Modern ls replacement: eza (per-file icons + git status).
 if command -v eza >/dev/null 2>&1; then
     alias ls='eza --icons --git'
     alias ll='eza -l -a --icons --git --group-directories-first'
@@ -308,11 +398,10 @@ zstyle ':completion:*' menu select
 EOL
 fi
 
-# Install a pre-configured Powerlevel10k preset so the user does NOT have to
-# run the interactive `p10k configure` wizard on first launch.
-# We use the official "lean" preset (clean two-line prompt, Nerd Font icons,
-# no Y/N prompts). User can re-run `p10k configure` later to customize.
-P10K_PRESET="$HOME/.oh-my-zsh/custom/themes/powerlevel10k/config/p10k-lean.zsh"
+# ---------------------------------------------------------------------------
+# Pre-install Powerlevel10k "lean" preset so first-run wizard never fires.
+# ---------------------------------------------------------------------------
+P10K_PRESET="$P10K_DIR/config/p10k-lean.zsh"
 if [ -f "$HOME/.p10k.zsh" ]; then
     echo "~/.p10k.zsh already exists; leaving it alone."
 elif [ -f "$P10K_PRESET" ]; then
@@ -322,8 +411,23 @@ else
     echo "Powerlevel10k preset not found at $P10K_PRESET (skipping)."
 fi
 
-# Apply changes
-source ~/.zshrc
+# ---------------------------------------------------------------------------
+# Make zsh the user's login shell (Linux only — macOS already defaults zsh).
+# ---------------------------------------------------------------------------
+if [[ "$OS" == "linux" ]]; then
+    ZSH_BIN="$(command -v zsh)"
+    if [ -n "$ZSH_BIN" ] && [ "$SHELL" != "$ZSH_BIN" ]; then
+        echo "Changing login shell to $ZSH_BIN ..."
+        if grep -q "^$ZSH_BIN$" /etc/shells 2>/dev/null; then
+            chsh -s "$ZSH_BIN" || echo "chsh failed; run manually: chsh -s $ZSH_BIN"
+        else
+            echo "$ZSH_BIN not in /etc/shells; skipping chsh."
+        fi
+    fi
+fi
+
+# Apply changes (best-effort; safe to ignore failure in non-interactive runs).
+source ~/.zshrc 2>/dev/null || true
 
 cat <<'NOTICE'
 
@@ -332,11 +436,12 @@ cat <<'NOTICE'
 ============================================================
 
 Next steps:
-  1. Quit iTerm2 fully (Cmd+Q) and reopen it. The new font and
+  1. macOS: quit iTerm2 fully (Cmd+Q) and reopen it. Font and
      theme only take effect in fresh iTerm2 windows.
+     Linux: open a new terminal window (or run 'exec zsh').
+            Set your terminal emulator's font to 'MesloLGS NF'.
   2. The Powerlevel10k "lean" preset is pre-installed, so you
-     will NOT see the configuration wizard. Just open a new
-     terminal and start working.
+     will NOT see the configuration wizard.
   3. To customize the prompt later, run:  p10k configure
   4. To reload your shell without reopening:  exec zsh
 

@@ -1,9 +1,14 @@
 # TurboEnhance
 
-> Turbocharge your macOS terminal with a seamless Zsh setup,
+> Turbocharge your **macOS or Linux** terminal with a seamless Zsh setup,
 > Powerlevel10k, and essential plugins for maximum productivity!
 
-TurboEnhance is a setup script designed to streamline and supercharge your macOS terminal environment. It automates the installation of Zsh, Oh My Zsh, Powerlevel10k, and essential plugins, transforming your terminal into a highly efficient, visually appealing tool for developers and power users.
+TurboEnhance is a setup script that streamlines and supercharges your
+terminal environment on **macOS (Intel + Apple Silicon)** and on
+**Linux (Debian/Ubuntu, Fedora, Arch)**. It installs Zsh, Oh My Zsh,
+Powerlevel10k, Nerd Fonts, and a curated set of plugins, so a fresh
+shell becomes a highly efficient, visually consistent tool for
+developers and power users — without the usual hour of fiddling.
 
 ```mermaid
 flowchart LR
@@ -120,16 +125,17 @@ zsh ./setup.sh
 ```
 
 The script is idempotent — safe to re-run. It will:
-1. Back up `~/.zshrc` and `~/.zprofile` (with your confirmation).
-2. Install Homebrew, Zsh, Oh My Zsh, Powerlevel10k, plugins, tmux, vim, neovim, git, fzf.
-3. Install **MesloLGS NF** font (cask + direct download to `~/Library/Fonts`).
-4. Install **iTerm2**, set its font to `MesloLGS NF 13pt`, and apply a dark color scheme.
-5. Switch Terminal.app's default profile to the dark **Pro** profile + `MesloLGS NF`.
-6. Register iTerm2 (via `duti`) as the default handler for `.sh` / `.command` / shell-script types.
-7. Write a fresh `~/.zshrc` wired to Powerlevel10k + plugins.
+1. Detect your OS (macOS or Linux distro).
+2. Back up `~/.zshrc` and `~/.zprofile` (with your confirmation, first run only).
+3. Install Homebrew (macOS) or use apt/dnf/pacman (Linux) to install Zsh, Oh My Zsh, Powerlevel10k, plugins, tmux, vim, neovim, git, fzf, eza.
+4. Install **MesloLGS NF** font (macOS cask; Linux → `~/.local/share/fonts` + `fc-cache`).
+5. **macOS only:** install **iTerm2**, set its font to `MesloLGSDZNF-Regular 13pt`, apply a dark color scheme, switch Terminal.app's default profile to dark **Pro**, and register iTerm2 (via `duti`) as the default handler for `.sh` / `.command` types.
+6. **Linux only:** run `chsh -s $(command -v zsh)` if zsh is in `/etc/shells`.
+7. Append a single managed block to `~/.zshrc` wired to Powerlevel10k + plugins (preserving any existing customization).
 
 ### Step 3: Restart your terminal
-Quit and relaunch iTerm2. On first launch Powerlevel10k will run `p10k configure` — pick your prompt style. Done.
+- **macOS:** Quit iTerm2 fully (Cmd+Q) and relaunch. The Powerlevel10k "lean" preset is preinstalled, so no wizard fires.
+- **Linux:** Open a new terminal window (or `exec zsh`). Set your terminal emulator's font to **MesloLGS NF** (size 12–13).
 
 
 ## 🗺️ Repository map
