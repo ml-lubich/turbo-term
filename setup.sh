@@ -73,8 +73,15 @@ fi
 echo "Installing useful plugins and tools..."
 brew install fzf autojump zsh-syntax-highlighting zsh-autosuggestions
 
-# Install MesloLGS Nerd Font (required by Powerlevel10k for icons/glyphs)
-# Homebrew merged the cask-fonts tap into homebrew/cask, so this works directly.
+# Install MesloLGS Nerd Font family (required by Powerlevel10k for icons).
+# The Homebrew cask installs the full family. We configure iTerm2 to use
+# "MesloLGSDZ Nerd Font" (PostScript: MesloLGSDZNF-Regular):
+#   LGS  = small line gap (p10k recommended)
+#   DZ   = dotted/slashed zero
+#   no Mono suffix = double-width icons (best icon rendering)
+# Do NOT also pull the legacy "MesloLGS NF" files from powerlevel10k-media
+# (PostScript "MesloLGS-NF-Regular") — they shadow the cask font and break
+# icon rendering.
 echo "Installing MesloLGS Nerd Font (required by Powerlevel10k)..."
 if brew list --cask font-meslo-lg-nerd-font &>/dev/null; then
     echo "MesloLGS Nerd Font already installed!"
@@ -82,27 +89,26 @@ else
     brew install --cask font-meslo-lg-nerd-font
 fi
 
-# Also fetch the four official Powerlevel10k MesloLGS NF variants directly,
-# in case the cask is unavailable. These are the exact files p10k recommends.
+# Remove any stale "MesloLGS NF" files from prior runs of this script so
+# they cannot shadow the cask font.
 FONT_DIR="$HOME/Library/Fonts"
-mkdir -p "$FONT_DIR"
-P10K_FONT_BASE="https://github.com/romkatv/powerlevel10k-media/raw/master"
-for font_file in \
+for stale in \
+    "MesloLGS NF Regular.ttf" \
+    "MesloLGS NF Bold.ttf" \
+    "MesloLGS NF Italic.ttf" \
+    "MesloLGS NF Bold Italic.ttf" \
     "MesloLGS%20NF%20Regular.ttf" \
     "MesloLGS%20NF%20Bold.ttf" \
     "MesloLGS%20NF%20Italic.ttf" \
     "MesloLGS%20NF%20Bold%20Italic.ttf"; do
-    decoded_name="${font_file//%20/ }"
-    if [ ! -f "$FONT_DIR/$decoded_name" ]; then
-        echo "Downloading $decoded_name ..."
-        curl -fsSL "$P10K_FONT_BASE/$font_file" -o "$FONT_DIR/$decoded_name"
-    else
-        echo "$decoded_name already present in $FONT_DIR"
+    if [ -f "$FONT_DIR/$stale" ]; then
+        echo "Removing stale font: $stale"
+        rm -f "$FONT_DIR/$stale"
     fi
 done
-echo "MesloLGS NF installed."
+echo "MesloLGS Nerd Font ready (using MesloLGSDZ Nerd Font)."
 
-# Install iTerm2 and configure it to use MesloLGS NF
+# Install iTerm2 and configure it to use MesloLGS Nerd Font
 if [ ! -d "/Applications/iTerm.app" ] && ! brew list --cask iterm2 &>/dev/null; then
     echo "Installing iTerm2..."
     brew install --cask iterm2
@@ -124,10 +130,10 @@ defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool false
 # "<PostScript name> <size>". MesloLGS NF PostScript name is "MesloLGS-NF".
 ITERM_PLIST="$HOME/Library/Preferences/com.googlecode.iterm2.plist"
 if [ -f "$ITERM_PLIST" ]; then
-    /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Normal Font\" 'MesloLGS-NF 13'" "$ITERM_PLIST" 2>/dev/null \
-        || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Normal Font\" string 'MesloLGS-NF 13'" "$ITERM_PLIST"
-    /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Non Ascii Font\" 'MesloLGS-NF 13'" "$ITERM_PLIST" 2>/dev/null \
-        || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Non Ascii Font\" string 'MesloLGS-NF 13'" "$ITERM_PLIST"
+    /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Normal Font\" 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST" 2>/dev/null \
+        || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Normal Font\" string 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST"
+    /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Non Ascii Font\" 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST" 2>/dev/null \
+        || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Non Ascii Font\" string 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST"
     /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Use Non-ASCII Font\" true" "$ITERM_PLIST" 2>/dev/null \
         || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Use Non-ASCII Font\" bool true" "$ITERM_PLIST"
     echo "iTerm2 default profile font set to MesloLGS NF 13pt."
@@ -205,43 +211,75 @@ brew install vim neovim
 # Install Git if not installed
 brew install git
 
-# Install fzf for fuzzy search and setup
-$(brew --prefix)/opt/fzf/install
+# Install fzf for fuzzy search and setup (non-interactive)
+"$(brew --prefix)/opt/fzf/install" --all --no-bash --no-fish
 
 echo "All tools are installed!"
 
 # Configuring Zsh environment
 echo "Configuring your Zsh environment..."
 
-# Overwrite the ~/.zshrc file
-cat <<EOL > ~/.zshrc
+# IDEMPOTENT, NON-DESTRUCTIVE ~/.zshrc setup.
+# We do NOT overwrite an existing ~/.zshrc. Instead we ensure a "TURBO-TERM"
+# managed block exists exactly once, and append it if missing. This protects
+# user customization (eza aliases, functions, exports, etc.) across re-runs.
 
-# Set Homebrew path for Apple Silicon
-export PATH="/opt/homebrew/bin:\$PATH"
+ZSHRC="$HOME/.zshrc"
+TURBO_BEGIN="# >>> turbo-term managed block >>>"
+TURBO_END="# <<< turbo-term managed block <<<"
 
-# Enable Powerlevel10k instant prompt (Should be placed at the top)
-if [[ -r "\${XDG_CACHE_HOME:-\$HOME/.cache}/p10k-instant-prompt-\${(%):-%n}.zsh" ]]; then
-  source "\${XDG_CACHE_HOME:-\$HOME/.cache}/p10k-instant-prompt-\${(%):-%n}.zsh"
+# If file does not exist, create empty so grep/append work.
+[ -f "$ZSHRC" ] || touch "$ZSHRC"
+
+# Install eza if missing (gives `ls` icons + git status). Safe no-op if present.
+if ! command -v eza &>/dev/null; then
+    echo "Installing eza (modern ls with icons)..."
+    brew install eza
 fi
 
-# Path to your Oh My Zsh installation
-export ZSH="\$HOME/.oh-my-zsh"
+if grep -q "$TURBO_BEGIN" "$ZSHRC"; then
+    echo "turbo-term managed block already present in ~/.zshrc; leaving it."
+else
+    echo "Appending turbo-term managed block to ~/.zshrc (preserving existing content)..."
+    cat <<'EOL' >> "$ZSHRC"
 
-# Load Oh My Zsh configuration and plugins
+# >>> turbo-term managed block >>>
+# Managed by turbo-term/setup.sh. Edit between the markers ABOVE/BELOW only.
+
+# Homebrew on Apple Silicon
+export PATH="/opt/homebrew/bin:$PATH"
+
+# Powerlevel10k instant prompt (must stay near the top of the managed block)
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+# Skip Powerlevel10k first-run configuration wizard (preset is preinstalled)
+POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
+
+# Oh My Zsh
+export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="powerlevel10k/powerlevel10k"
 plugins=(git z fzf autojump)
+source "$ZSH/oh-my-zsh.sh"
 
-source \$ZSH/oh-my-zsh.sh
+# Plugins from Homebrew
+[ -r /opt/homebrew/opt/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] \
+    && source /opt/homebrew/opt/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+[ -r /opt/homebrew/opt/zsh-syntax-highlighting/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] \
+    && source /opt/homebrew/opt/zsh-syntax-highlighting/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
-# Manually source zsh-autosuggestions and zsh-syntax-highlighting from Homebrew
-source /opt/homebrew/opt/zsh-autosuggestions/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-source /opt/homebrew/opt/zsh-syntax-highlighting/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-
-# FZF configuration (Ensure it's installed)
+# fzf
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
-# User Aliases
-alias ll='ls -lah'
+# Modern ls replacement: eza (gives per-file icons in ls output)
+if command -v eza >/dev/null 2>&1; then
+    alias ls='eza --icons --git'
+    alias ll='eza -l -a --icons --git --group-directories-first'
+    alias tree='eza --tree --icons'
+fi
+
+# Common git aliases
 alias gs='git status'
 alias ga='git add .'
 alias gc='git commit -m'
@@ -249,43 +287,58 @@ alias gp='git push'
 alias gco='git checkout'
 alias gl='git pull'
 alias gcb='git checkout -b'
-alias gpush='git push origin \$(git_current_branch)'
 alias ..='cd ..'
 
-# Custom Functions
-mygit() {
-  cd ~/Desktop/git && code .
-}
-
-project1() { cd ~/projects/project1; }
-project2() { cd ~/projects/project2; }
-
-# Enable Vim keybindings in Zsh
-bindkey -v
-
-# History settings
+# History
 HISTFILE=~/.zsh_history
 HISTSIZE=10000
 SAVEHIST=10000
 setopt share_history
 
-# Auto-correction and completion
+# Completion
 ENABLE_CORRECTION="true"
 COMPLETION_WAITING_DOTS="true"
-
-# Disable dirty check for faster Git operations
 DISABLE_UNTRACKED_FILES_DIRTY="true"
-
-# Zsh completion settings
 zstyle ':completion:*' rehash true
 zstyle ':completion:*' menu select
 
-# Source Powerlevel10k configuration if it exists
+# Powerlevel10k preset
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-
+# <<< turbo-term managed block <<<
 EOL
+fi
+
+# Install a pre-configured Powerlevel10k preset so the user does NOT have to
+# run the interactive `p10k configure` wizard on first launch.
+# We use the official "lean" preset (clean two-line prompt, Nerd Font icons,
+# no Y/N prompts). User can re-run `p10k configure` later to customize.
+P10K_PRESET="$HOME/.oh-my-zsh/custom/themes/powerlevel10k/config/p10k-lean.zsh"
+if [ -f "$HOME/.p10k.zsh" ]; then
+    echo "~/.p10k.zsh already exists; leaving it alone."
+elif [ -f "$P10K_PRESET" ]; then
+    cp "$P10K_PRESET" "$HOME/.p10k.zsh"
+    echo "Installed Powerlevel10k 'lean' preset to ~/.p10k.zsh."
+else
+    echo "Powerlevel10k preset not found at $P10K_PRESET (skipping)."
+fi
 
 # Apply changes
 source ~/.zshrc
 
-echo "Your Zsh environment is configured. Happy coding!"
+cat <<'NOTICE'
+
+============================================================
+  Setup complete.
+============================================================
+
+Next steps:
+  1. Quit iTerm2 fully (Cmd+Q) and reopen it. The new font and
+     theme only take effect in fresh iTerm2 windows.
+  2. The Powerlevel10k "lean" preset is pre-installed, so you
+     will NOT see the configuration wizard. Just open a new
+     terminal and start working.
+  3. To customize the prompt later, run:  p10k configure
+  4. To reload your shell without reopening:  exec zsh
+
+============================================================
+NOTICE

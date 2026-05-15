@@ -41,8 +41,19 @@ flowchart LR
 - [Installation](#installation)
 - [Setup pipeline (sequence)](#setup-pipeline-sequence)
 - [Plugin activation order](#plugin-activation-order)
+- [Documentation](#documentation)
 - [🗺️ Repository map](#️-repository-map)
 - [📊 Code composition](#-code-composition)
+
+## Documentation
+
+Canonical engineering docs (audience: maintainers + agents):
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — module map, layers, invariants.
+- [docs/API.md](docs/API.md) — invocation contract, exit codes, files written.
+- [docs/TESTING.md](docs/TESTING.md) — Definition of Done, verification commands.
+- [docs/RUNBOOK.md](docs/RUNBOOK.md) — setup, common failures, how to extend.
+- [docs/CHANGELOG.md](docs/CHANGELOG.md) — versioned change history.
 
 ## Setup pipeline (sequence)
 
@@ -131,6 +142,12 @@ mindmap
     files
       README.md
       setup.sh
+    docs
+      ARCHITECTURE.md
+      API.md
+      TESTING.md
+      RUNBOOK.md
+      CHANGELOG.md
 ```
 
 
@@ -139,7 +156,7 @@ mindmap
 File-type breakdown of source under this repo (skips `.git`, `node_modules`, build caches, lockfiles).
 
 ```mermaid
-pie showData title File-type composition of turbo-term (2 files)
+pie showData title File-type composition of turbo-term (7 files)
     "Shell" : 1
-    "Markdown" : 1
+    "Markdown" : 6
 ```
