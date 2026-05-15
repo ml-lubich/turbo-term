@@ -130,6 +130,7 @@ mindmap
   root((turbo-term))
     files
       README.md
+      setup.sh
 ```
 
 
