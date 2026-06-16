@@ -135,6 +135,87 @@ APPLESCRIPT
     } &!
 }
 
+# Best-effort GNOME Terminal font wiring (Linux). Other emulators are manual.
+configure_gnome_terminal_font() {
+    command -v gsettings &>/dev/null || return 1
+    local list="org.gnome.Terminal.ProfilesList" default
+    default="$(gsettings get "$list" default 2>/dev/null | tr -d "\"'")" || return 1
+    [ -n "$default" ] || return 1
+    local path="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:$default/"
+    gsettings set "$path" use-system-font false 2>/dev/null || return 1
+    gsettings set "$path" font 'MesloLGS NF 12' 2>/dev/null || return 1
+    echo "GNOME Terminal default profile font set to 'MesloLGS NF 12'."
+}
+
+# Automated visual check: render the glyphs so the user can eyeball them now.
+render_icon_preview() {
+    printf 'Icon check (expect 3 glyphs, not boxes/?): '
+    print -r -- $'\uf015 \uf07b \ue0a0'
+}
+
+next_steps_macos() {
+    cat <<'EOS'
+  - A fresh iTerm2 window was opened with 'MesloLGS NF' + dark theme already
+    applied. Use it; do not quit the window running setup.sh.
+  - If glyphs look wrong: iTerm2 > Settings > Profiles > Text > Font =
+    'MesloLGS NF'. Terminal.app uses the 'Pro' profile (already configured).
+EOS
+}
+
+next_steps_linux() {
+    cat <<'EOS'
+  - Open a new terminal window, or reload in place:  exec zsh
+  - Set your terminal emulator font to 'MesloLGS NF' (size 12-13):
+      GNOME Terminal:   Preferences > Profile > Text > Custom font
+                        (setup.sh sets this automatically when possible)
+      Konsole:          Settings > Edit Profile > Appearance > Font
+      Alacritty/kitty:  set font family 'MesloLGS NF' in the config file
+EOS
+}
+
+next_steps_wsl() {
+    cat <<'EOS'
+  - Windows Terminal: Settings > your profile > Appearance > Font face =
+    'MesloLGS NF', then reload the shell:  exec zsh
+EOS
+}
+
+print_os_next_steps() {
+    if [[ "$IS_WSL" -eq 1 ]]; then next_steps_wsl; return 0; fi
+    case "$OS" in
+        macos) next_steps_macos ;;
+        linux) next_steps_linux ;;
+    esac
+}
+
+# Cross-platform manual recovery — used when emulator font cannot be auto-set.
+print_manual_fallback() {
+    cat <<'EOS'
+  1. Confirm the font installed:   fc-list | grep -i meslo
+     (macOS may also list it in Font Book.)
+  2. Set the terminal emulator font to 'MesloLGS NF'.
+  3. Re-test glyphs:               print -r -- $'\uf015 \uf07b \ue0a0'
+  4. Reload the shell in place:    exec zsh
+  5. Re-run the prompt wizard:     p10k configure
+EOS
+}
+
+print_next_steps() {
+    echo
+    echo "============================================================"
+    echo "  Setup complete."
+    echo "============================================================"
+    echo
+    render_icon_preview
+    echo
+    echo "Next steps:"
+    print_os_next_steps
+    echo
+    echo "Cross-platform fallback (if glyphs are boxes/? or the prompt is off):"
+    print_manual_fallback
+    echo "============================================================"
+}
+
 # ---------------------------------------------------------------------------
 # Cross-platform package installer
 # ---------------------------------------------------------------------------
@@ -304,6 +385,8 @@ else
     fi
     if [[ "$IS_WSL" -eq 1 ]]; then
         echo "WSL detected: set Windows Terminal font face to 'MesloLGS NF'."
+    else
+        configure_gnome_terminal_font || echo "GNOME Terminal auto-config skipped; set the font manually (see Next steps)."
     fi
     echo "MesloLGS NF installed to $FONT_DIR. Configure your terminal emulator"
     echo "to use 'MesloLGS NF' (size 12-13)."
@@ -516,21 +599,4 @@ fi
 
 open_fresh_iterm_window
 
-cat <<'NOTICE'
-
-============================================================
-  Setup complete.
-============================================================
-
-Next steps:
-  1. macOS: use the fresh iTerm2 window opened by setup.sh. Do not
-     quit the terminal that is running setup.sh.
-     Linux: open a new terminal window (or run 'exec zsh').
-            Set your terminal emulator's font to 'MesloLGS NF'.
-     WSL: set Windows Terminal font face to 'MesloLGS NF'.
-  2. setup.sh sends 'y' to the p10k Meslo prompt when expect is present.
-  3. Validate icons with:  echo $'\uf015 \uf07b \ue0a0'
-  4. To reload your shell without reopening:  exec zsh
-
-============================================================
-NOTICE
+print_next_steps
