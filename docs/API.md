@@ -12,6 +12,8 @@ zsh ./setup.sh
 - No flags, no positional args, no env vars.
 - Must run interactively (the backup step and Powerlevel10k wizard
   prompt for confirmation).
+- Homebrew package and cask installs run with `--no-ask`; they must not
+  prompt for install confirmation.
 - Requires network access (Homebrew or distro repos, Oh My Zsh
   installer, Powerlevel10k git clone, Nerd Font download on Linux).
 - On Linux, expects `sudo` to be available unless invoked as root.
@@ -76,5 +78,6 @@ Re-running `setup.sh` on a configured machine must:
 - Not quit the terminal application that is running `setup.sh`.
 - Not hang if `expect` is unavailable; it falls back to manual
   `p10k configure`.
+- Not pause on Homebrew install confirmation prompts.
 - Not re-prompt for backups if `*.backup` files already exist.
 - Not re-run `chsh` if zsh is already the login shell.

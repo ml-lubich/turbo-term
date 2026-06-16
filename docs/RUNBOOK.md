@@ -44,6 +44,8 @@ zsh ./setup.sh
 
 It will:
 - Skip already-installed packages (brew/apt/dnf/pacman).
+- Run Homebrew package/cask installs without install confirmation
+  prompts.
 - Leave the existing `turbo-term managed block` in `~/.zshrc` alone.
 - Leave `~/.p10k.zsh` alone if it already exists.
 - Skip the backup prompt if `~/.zshrc.backup` already exists.

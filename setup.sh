@@ -146,7 +146,7 @@ pkg_install() {
         macos)
             [[ "$mac_pkg" == "-" ]] && return 0
             brew list "$mac_pkg" &>/dev/null && return 0
-            brew install "$mac_pkg"
+            HOMEBREW_NO_ASK=1 brew install --formula --no-ask "$mac_pkg"
             ;;
         linux)
             case "$DISTRO" in
@@ -203,7 +203,7 @@ if [[ "$OS" == "macos" ]]; then
     }
     if ! command -v brew &>/dev/null; then
         echo "Homebrew not found, installing..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     fi
     add_homebrew_to_path
 elif [[ "$OS" == "linux" && "$DISTRO" == "debian" ]]; then
@@ -268,7 +268,7 @@ if [[ "$OS" == "macos" ]]; then
     if brew list --cask font-meslo-lg-nerd-font &>/dev/null; then
         echo "MesloLGS Nerd Font already installed."
     else
-        brew install --cask font-meslo-lg-nerd-font
+        HOMEBREW_NO_ASK=1 brew install --cask --no-ask font-meslo-lg-nerd-font
     fi
     echo "Powerlevel10k may also install official MesloLGS NF files during configure."
 else
@@ -306,7 +306,7 @@ verify_meslo_font
 if [[ "$OS" == "macos" ]]; then
     if [ ! -d "/Applications/iTerm.app" ] && ! brew list --cask iterm2 &>/dev/null; then
         echo "Installing iTerm2..."
-        brew install --cask iterm2
+        HOMEBREW_NO_ASK=1 brew install --cask --no-ask iterm2
     else
         echo "iTerm2 already installed."
     fi
@@ -356,7 +356,7 @@ APPLESCRIPT
 
     echo "Setting iTerm2 as the default terminal handler..."
     if ! command -v duti &>/dev/null; then
-        brew install duti
+        HOMEBREW_NO_ASK=1 brew install --formula --no-ask duti
     fi
     ITERM_BUNDLE_ID="com.googlecode.iterm2"
     duti -s "$ITERM_BUNDLE_ID" public.unix-executable           all 2>/dev/null || true

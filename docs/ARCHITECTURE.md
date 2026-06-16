@@ -24,7 +24,8 @@ turbo-term/
    (only on first run; skipped if backups already exist).
 3. **Package manager** — install Homebrew on macOS; refresh apt cache
    on Debian/Ubuntu. A `pkg_install` helper abstracts brew / apt /
-   dnf / pacman so the rest of the script stays single-track.
+   dnf / pacman so the rest of the script stays single-track. macOS
+   formula and cask installs pass Homebrew's no-ask mode.
 4. **CLI tools** — `zsh git curl tmux vim neovim fzf autojump eza
    ripgrep fd bat jq htop tree wget expect` plus zsh
    syntax-highlighting + autosuggestions plugins, installed via the
@@ -76,6 +77,8 @@ turbo-term/
   are not bootstrapped by this Zsh script.
 - **No hidden state.** Everything is visible by reading `setup.sh`.
   No external config, no required env vars.
+- **No package-confirmation stalls.** Package-manager calls that support
+  non-interactive install confirmation must use it.
 
 ## Data flow
 
