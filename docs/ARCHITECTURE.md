@@ -25,22 +25,26 @@ turbo-term/
 3. **Package manager** — install Homebrew on macOS; refresh apt cache
    on Debian/Ubuntu. A `pkg_install` helper abstracts brew / apt /
    dnf / pacman so the rest of the script stays single-track.
-4. **CLI tools** — `zsh git curl tmux vim neovim fzf autojump eza`
-   plus zsh syntax-highlighting + autosuggestions plugins, installed
-   via the appropriate package manager for the host.
+4. **CLI tools** — `zsh git curl tmux vim neovim fzf autojump eza
+   ripgrep fd bat jq htop tree wget expect` plus zsh
+   syntax-highlighting + autosuggestions plugins, installed via the
+   appropriate package manager for the host.
 5. **Fonts** —
-   - macOS: `font-meslo-lg-nerd-font` Homebrew cask + purge of legacy
-     `MesloLGS NF *.ttf` files in `~/Library/Fonts` that would shadow it.
+   - macOS: `font-meslo-lg-nerd-font` Homebrew cask, plus optional
+     Powerlevel10k-installed `MesloLGS NF *.ttf` files when the Meslo
+     prompt is accepted.
    - Linux: download the four official Powerlevel10k MesloLGS NF
      variants into `~/.local/share/fonts` and run `fc-cache -f`.
 6. **macOS-only desktop wiring** — install iTerm2 cask, write the
    font + dark color scheme into the default profile via `defaults`
-   and `PlistBuddy`, switch Terminal.app to the dark **Pro** profile,
-   and register iTerm2 (via `duti`) as the default handler for `.sh`,
-   `.command`, and `terminal:` URLs. Skipped entirely on Linux.
-7. **Oh My Zsh + Powerlevel10k** — install theme + the
-   `powerlevel10k/config/p10k-lean.zsh` preset to `~/.p10k.zsh` so the
-   first-run wizard never fires.
+   and `PlistBuddy` without quitting the running terminal, switch
+   Terminal.app to the dark **Pro** profile, and register iTerm2 (via
+   `duti`) as the default handler for `.sh`, `.command`, and
+   `terminal:` URLs. Skipped entirely on Linux.
+7. **Oh My Zsh + Powerlevel10k** — install the theme, append the
+   managed shell block, then run `p10k configure` interactively.
+   `expect` sends the first `y` at the Meslo prompt through a pseudo-TTY
+   and then returns control to the user for the remaining visual choices.
 8. **`~/.zshrc`** — append a single managed block delimited by
    `# >>> turbo-term managed block >>>` /
    `# <<< turbo-term managed block <<<`. The managed block probes for
@@ -58,13 +62,18 @@ turbo-term/
   every re-run.
 - **Single managed block.** Exactly one block (begin + end markers)
   in `~/.zshrc`. Ever.
-- **Font precedence (macOS).** Only the cask's `MesloLGSDZNF-Regular`
-  PostScript family is allowed. The legacy `MesloLGS-NF-Regular` files
-  must be absent, or icons break.
+- **Font precedence (macOS).** The setup supports both Homebrew's
+  current Meslo Nerd Font family and Powerlevel10k's official
+  `MesloLGS NF` files. Re-runs must not delete either source.
+- **No self-termination.** macOS desktop wiring must never quit the
+  terminal process hosting `setup.sh`; fresh iTerm2 windows are opened
+  only after setup reaches the final validation step.
 - **OS isolation.** macOS-only steps (iTerm2, Terminal.app, duti,
   PlistBuddy) live behind `if [[ "$OS" == "macos" ]]` and never run
   on Linux. Linux-only steps (apt update, chsh, fc-cache) never run
   on macOS.
+- **Windows boundary.** WSL follows the Linux path. Native Windows shells
+  are not bootstrapped by this Zsh script.
 - **No hidden state.** Everything is visible by reading `setup.sh`.
   No external config, no required env vars.
 
@@ -81,6 +90,5 @@ setup.sh ► detect OS / distro
    └─ linux  ► apt|dnf|pacman ► tools + fonts + fc-cache + chsh
    │
    ▼
-shared ► Oh My Zsh + Powerlevel10k + ~/.p10k.zsh + ~/.zshrc managed block
+shared ► Oh My Zsh + Powerlevel10k + ~/.zshrc managed block + p10k configure
 ```
-

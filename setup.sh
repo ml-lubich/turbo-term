@@ -2,13 +2,14 @@
 # turbo-term setup.sh — idempotent terminal bootstrapper for macOS and Linux.
 # Re-runnable. Preserves user customizations in ~/.zshrc.
 
-set -u
+set -euo pipefail
 
 # ---------------------------------------------------------------------------
 # OS detection
 # ---------------------------------------------------------------------------
 OS=""
 DISTRO=""
+IS_WSL=0
 case "$OSTYPE" in
     darwin*) OS="macos" ;;
     linux*)  OS="linux" ;;
@@ -19,6 +20,9 @@ case "$OSTYPE" in
 esac
 
 if [[ "$OS" == "linux" ]]; then
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+        IS_WSL=1
+    fi
     if command -v apt-get &>/dev/null;  then DISTRO="debian"
     elif command -v dnf &>/dev/null;     then DISTRO="fedora"
     elif command -v pacman &>/dev/null;  then DISTRO="arch"
@@ -48,6 +52,88 @@ if [[ "$OS" == "linux" ]] && [ "$(id -u)" -ne 0 ]; then
         echo "WARNING: not root and sudo missing — package installs will fail."
     fi
 fi
+
+is_interactive_tty() {
+    [[ -t 0 && -t 1 && -r /dev/tty ]]
+}
+
+install_p10k_font_with_expect() {
+    command -v expect &>/dev/null || return 1
+    expect <<'EXPECT'
+set timeout 20
+set saw_meslo 0
+spawn env POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true zsh -ic "p10k configure"
+expect {
+    -re {Meslo Nerd Font} {
+        set saw_meslo 1
+        exp_continue
+    }
+    -re {Choice \[ynq\]:} {
+        if {$saw_meslo == 0} {
+            interact
+            exit 0
+        }
+        send "y\r"
+        interact
+    }
+    eof {
+        catch wait result
+        exit [lindex $result 3]
+    }
+    timeout {
+        interact
+    }
+}
+EXPECT
+}
+
+run_p10k_configure() {
+    if ! is_interactive_tty; then
+        echo "Skipping p10k configure (no interactive TTY)."
+        return 0
+    fi
+    echo
+    echo "Powerlevel10k will configure the prompt."
+    echo "If the Meslo prompt appears, setup.sh sends 'y' automatically."
+    local answer=""
+    read "answer?Run 'p10k configure' now? (Y/n) "
+    case "$answer" in [Nn]*) return 0 ;; esac
+    install_p10k_font_with_expect || POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true zsh -ic 'p10k configure' </dev/tty >/dev/tty 2>&1
+}
+
+verify_macos_font() {
+    fc-match 'MesloLGS NF' &>/dev/null && return 0
+    find "$HOME/Library/Fonts" -iname '*Meslo*' -print -quit 2>/dev/null | grep -q . && return 0
+    echo "WARNING: MesloLGS font not visible yet; open a fresh terminal after setup."
+}
+
+verify_linux_font() {
+    command -v fc-list &>/dev/null || return 0
+    fc-list | grep -qi 'MesloLGS' && return 0
+    echo "WARNING: MesloLGS font not visible to fontconfig yet."
+}
+
+verify_meslo_font() {
+    case "$OS" in
+        macos) verify_macos_font ;;
+        linux) verify_linux_font ;;
+    esac
+}
+
+open_fresh_iterm_window() {
+    [[ "$OS" == "macos" ]] || return 0
+    command -v osascript &>/dev/null || return 0
+    echo "Opening a fresh iTerm2 window for font/profile validation..."
+    {
+        sleep 1
+        osascript <<'APPLESCRIPT' >/dev/null 2>&1
+tell application "iTerm2"
+    activate
+    create window with default profile
+end tell
+APPLESCRIPT
+    } &!
+}
 
 # ---------------------------------------------------------------------------
 # Cross-platform package installer
@@ -136,6 +222,14 @@ pkg_install vim        vim        vim        vim
 pkg_install neovim     neovim     neovim     neovim
 pkg_install fzf        fzf        fzf        fzf
 pkg_install autojump   autojump   autojump   autojump
+pkg_install expect     expect      expect      expect
+pkg_install ripgrep    ripgrep    ripgrep    ripgrep
+pkg_install fd         fd-find     fd-find     fd
+pkg_install bat        bat         bat         bat
+pkg_install jq         jq          jq          jq
+pkg_install htop       htop        htop        htop
+pkg_install tree       tree        tree        tree
+pkg_install wget       wget        wget        wget
 # zsh plugins: Homebrew packages on mac, distro packages on Linux where available.
 pkg_install zsh-syntax-highlighting  zsh-syntax-highlighting  zsh-syntax-highlighting  zsh-syntax-highlighting
 pkg_install zsh-autosuggestions      zsh-autosuggestions      zsh-autosuggestions      zsh-autosuggestions
@@ -165,7 +259,7 @@ fi
 
 # ---------------------------------------------------------------------------
 # MesloLGS Nerd Font
-#   macOS: Homebrew cask + purge legacy MesloLGS NF *.ttf shadows.
+#   macOS: Homebrew cask; p10k configure may also install official MesloLGS NF.
 #   Linux: download official p10k variants to ~/.local/share/fonts and
 #          refresh fontconfig cache.
 # ---------------------------------------------------------------------------
@@ -176,22 +270,7 @@ if [[ "$OS" == "macos" ]]; then
     else
         brew install --cask font-meslo-lg-nerd-font
     fi
-    # Purge legacy "MesloLGS NF" files that shadow the cask font (icons break).
-    FONT_DIR="$HOME/Library/Fonts"
-    for stale in \
-        "MesloLGS NF Regular.ttf" \
-        "MesloLGS NF Bold.ttf" \
-        "MesloLGS NF Italic.ttf" \
-        "MesloLGS NF Bold Italic.ttf" \
-        "MesloLGS%20NF%20Regular.ttf" \
-        "MesloLGS%20NF%20Bold.ttf" \
-        "MesloLGS%20NF%20Italic.ttf" \
-        "MesloLGS%20NF%20Bold%20Italic.ttf"; do
-        if [ -f "$FONT_DIR/$stale" ]; then
-            echo "Removing stale font: $stale"
-            rm -f "$FONT_DIR/$stale"
-        fi
-    done
+    echo "Powerlevel10k may also install official MesloLGS NF files during configure."
 else
     FONT_DIR="$HOME/.local/share/fonts"
     mkdir -p "$FONT_DIR"
@@ -213,9 +292,13 @@ else
         echo "Refreshing fontconfig cache..."
         fc-cache -f "$FONT_DIR"
     fi
+    if [[ "$IS_WSL" -eq 1 ]]; then
+        echo "WSL detected: set Windows Terminal font face to 'MesloLGS NF'."
+    fi
     echo "MesloLGS NF installed to $FONT_DIR. Configure your terminal emulator"
     echo "to use 'MesloLGS NF' (size 12-13)."
 fi
+verify_meslo_font
 
 # ---------------------------------------------------------------------------
 # macOS-only: iTerm2 + Terminal.app + duti default-handler wiring
@@ -228,22 +311,20 @@ if [[ "$OS" == "macos" ]]; then
         echo "iTerm2 already installed."
     fi
 
-    echo "Configuring iTerm2 default profile..."
-    osascript -e 'tell application "iTerm2" to quit' >/dev/null 2>&1 || true
-    sleep 1
+    echo "Configuring iTerm2 default profile without quitting the running terminal..."
 
     defaults write com.googlecode.iterm2 PrefsCustomFolder -string ""
     defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool false
 
     ITERM_PLIST="$HOME/Library/Preferences/com.googlecode.iterm2.plist"
     if [ -f "$ITERM_PLIST" ]; then
-        /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Normal Font\" 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Normal Font\" string 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST"
-        /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Non Ascii Font\" 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Non Ascii Font\" string 'MesloLGSDZNF-Regular 13'" "$ITERM_PLIST"
+        /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Normal Font\" 'MesloLGSDZNFM-Regular 13'" "$ITERM_PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Normal Font\" string 'MesloLGSDZNFM-Regular 13'" "$ITERM_PLIST"
+        /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Non Ascii Font\" 'MesloLGSDZNFM-Regular 13'" "$ITERM_PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Non Ascii Font\" string 'MesloLGSDZNFM-Regular 13'" "$ITERM_PLIST"
         /usr/libexec/PlistBuddy -c "Set :\"New Bookmarks\":0:\"Use Non-ASCII Font\" true" "$ITERM_PLIST" 2>/dev/null \
             || /usr/libexec/PlistBuddy -c "Add :\"New Bookmarks\":0:\"Use Non-ASCII Font\" bool true" "$ITERM_PLIST"
-        echo "iTerm2 default profile font set to MesloLGSDZNF-Regular 13pt."
+        echo "iTerm2 default profile font set to MesloLGSDZNFM-Regular 13pt."
 
         set_iterm_color() {
             local key="$1" r="$2" g="$3" b="$4"
@@ -323,9 +404,6 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# Skip Powerlevel10k first-run configuration wizard (preset is preinstalled).
-POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
-
 # Oh My Zsh
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="powerlevel10k/powerlevel10k"
@@ -369,6 +447,14 @@ if command -v eza >/dev/null 2>&1; then
     alias tree='eza --tree --icons'
 fi
 
+# Debian exposes these binaries under alternate names.
+if ! command -v fd >/dev/null 2>&1 && command -v fdfind >/dev/null 2>&1; then
+    alias fd='fdfind'
+fi
+if ! command -v bat >/dev/null 2>&1 && command -v batcat >/dev/null 2>&1; then
+    alias bat='batcat'
+fi
+
 # Common git aliases
 alias gs='git status'
 alias ga='git add .'
@@ -392,24 +478,16 @@ DISABLE_UNTRACKED_FILES_DIRTY="true"
 zstyle ':completion:*' rehash true
 zstyle ':completion:*' menu select
 
-# Powerlevel10k preset
+# Powerlevel10k config
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 # <<< turbo-term managed block <<<
 EOL
 fi
 
 # ---------------------------------------------------------------------------
-# Pre-install Powerlevel10k "lean" preset so first-run wizard never fires.
+# Powerlevel10k interactive prompt setup.
 # ---------------------------------------------------------------------------
-P10K_PRESET="$P10K_DIR/config/p10k-lean.zsh"
-if [ -f "$HOME/.p10k.zsh" ]; then
-    echo "~/.p10k.zsh already exists; leaving it alone."
-elif [ -f "$P10K_PRESET" ]; then
-    cp "$P10K_PRESET" "$HOME/.p10k.zsh"
-    echo "Installed Powerlevel10k 'lean' preset to ~/.p10k.zsh."
-else
-    echo "Powerlevel10k preset not found at $P10K_PRESET (skipping)."
-fi
+run_p10k_configure
 
 # ---------------------------------------------------------------------------
 # Make zsh the user's login shell (Linux only — macOS already defaults zsh).
@@ -426,8 +504,7 @@ if [[ "$OS" == "linux" ]]; then
     fi
 fi
 
-# Apply changes (best-effort; safe to ignore failure in non-interactive runs).
-source ~/.zshrc 2>/dev/null || true
+open_fresh_iterm_window
 
 cat <<'NOTICE'
 
@@ -436,13 +513,13 @@ cat <<'NOTICE'
 ============================================================
 
 Next steps:
-  1. macOS: quit iTerm2 fully (Cmd+Q) and reopen it. Font and
-     theme only take effect in fresh iTerm2 windows.
+  1. macOS: use the fresh iTerm2 window opened by setup.sh. Do not
+     quit the terminal that is running setup.sh.
      Linux: open a new terminal window (or run 'exec zsh').
             Set your terminal emulator's font to 'MesloLGS NF'.
-  2. The Powerlevel10k "lean" preset is pre-installed, so you
-     will NOT see the configuration wizard.
-  3. To customize the prompt later, run:  p10k configure
+     WSL: set Windows Terminal font face to 'MesloLGS NF'.
+  2. setup.sh sends 'y' to the p10k Meslo prompt when expect is present.
+  3. Validate icons with:  echo $'\uf015 \uf07b \ue0a0'
   4. To reload your shell without reopening:  exec zsh
 
 ============================================================

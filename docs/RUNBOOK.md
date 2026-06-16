@@ -8,13 +8,19 @@ cd turbo-term
 zsh ./setup.sh
 ```
 
+During `p10k configure`, setup sends `y` to the Meslo Nerd Font prompt
+when `expect` is present. Complete the remaining visual choices
+manually.
+
 Then:
-- **macOS:** quit iTerm2 fully (Cmd+Q) and reopen it. Font and color
-  scheme changes only apply to fresh iTerm2 windows.
+- **macOS:** use the fresh iTerm2 window opened by `setup.sh`. Do not
+  quit the terminal that is still running setup.
 - **Linux:** open a new terminal window (or run `exec zsh`). Set your
   terminal emulator's font to **MesloLGS NF** (size 12–13). For
   GNOME Terminal: Preferences → Profile → Custom font. For
   Konsole/Alacritty/Kitty: edit the font in the profile/config file.
+- **Windows via WSL:** run the script inside WSL, then set Windows
+  Terminal's font face to **MesloLGS NF** for the WSL profile.
 
 ## Supported Linux distros
 
@@ -23,10 +29,10 @@ Then:
 - Arch / Manjaro — uses `pacman`.
 
 Other distros: install `zsh git curl tmux vim neovim fzf autojump
-zsh-syntax-highlighting zsh-autosuggestions eza` manually, then re-run
-`setup.sh` — it will detect the missing pieces it cannot install and
-still set up Oh My Zsh, Powerlevel10k, fonts, and the managed `~/.zshrc`
-block.
+expect zsh-syntax-highlighting zsh-autosuggestions eza` manually, then
+re-run `setup.sh` — it will detect the missing pieces it cannot install
+and still set up Oh My Zsh, Powerlevel10k, fonts, and the managed
+`~/.zshrc` block.
 
 ## How to re-run safely
 
@@ -42,18 +48,23 @@ It will:
 - Leave `~/.p10k.zsh` alone if it already exists.
 - Skip the backup prompt if `~/.zshrc.backup` already exists.
 
+On Debian-family systems, use `fd` and `bat` normally after opening a new
+shell; the managed block aliases them to `fdfind` and `batcat` when
+needed.
+
 ## Common failures
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Prompt shows boxes / `?` instead of icons (macOS) | Wrong terminal font, or legacy `MesloLGS NF *.ttf` files in `~/Library/Fonts` shadowing the cask | Re-run `setup.sh` (it now purges the legacy files), then quit + reopen iTerm2. Verify the iTerm2 profile font is `MesloLGSDZNF-Regular 13`. |
+| Prompt shows boxes / `?` instead of icons (macOS) | Wrong terminal font or iTerm2 profile not refreshed | Re-run `setup.sh`, let setup send `y` in `p10k configure`, then use the fresh iTerm2 window. Verify the iTerm2 profile font is Meslo-based. |
 | Prompt shows boxes / `?` instead of icons (Linux) | Terminal emulator is still using its default font | Set the terminal emulator's font to `MesloLGS NF`. Confirm install with `fc-list \| grep -i meslo`. If empty, run `fc-cache -f ~/.local/share/fonts`. |
-| Powerlevel10k wizard fires on first launch | `~/.p10k.zsh` was missing when shell loaded | Re-run `setup.sh` to install the lean preset, or run `p10k configure` once and save. |
+| Prompt shows boxes / `?` instead of icons (WSL) | Windows Terminal profile still uses the default font | In Windows Terminal Settings, set the WSL profile font face to `MesloLGS NF`, then open a new WSL tab. |
+| Powerlevel10k wizard fires on first launch | `~/.p10k.zsh` was missing when shell loaded | Run `p10k configure`; if `expect` is installed, setup sends `y` for Meslo Nerd Font, then you save the generated `~/.p10k.zsh`. |
 | `~/.zshrc` looks duplicated | An older non-idempotent script run | Delete the duplicate `turbo-term managed block` (between the `# >>>` / `# <<<` markers) and re-run `setup.sh`. |
 | `command not found: brew` after install (macOS) | New shell did not pick up `/opt/homebrew/bin` on PATH | Open a new terminal window, or `exec zsh`. |
 | Login shell did not change to zsh (Linux) | `chsh` skipped because `/etc/shells` does not list `$(command -v zsh)` | Add the path manually: `echo $(command -v zsh) \| sudo tee -a /etc/shells`, then `chsh -s $(command -v zsh)`. |
 | Double-clicking a `.sh` opens Terminal.app instead of iTerm2 (macOS) | LaunchServices cache stale | `lsregister -kill -r -domain local -domain user; killall Finder` then re-run the duti block in `setup.sh`. |
-| iTerm2 colors look washed out / illegible | An older profile is loaded from a custom prefs folder | The script sets `PrefsCustomFolder=""` and `LoadPrefsFromCustomFolder=false`; re-run, then **fully quit** iTerm2 before reopening. |
+| iTerm2 colors look washed out / illegible | An older profile is loaded from a custom prefs folder | The script sets `PrefsCustomFolder=""` and `LoadPrefsFromCustomFolder=false`; re-run, then open a fresh iTerm2 window after setup completes. |
 | `apt-get install eza` fails on older Debian/Ubuntu | `eza` is only in bookworm-backports and trixie+ | Enable backports, install eza manually, or skip — the managed block tolerates eza being absent. |
 
 ## Credential rotation

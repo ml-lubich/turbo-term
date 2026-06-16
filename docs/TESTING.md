@@ -21,7 +21,7 @@ A change to `setup.sh` is not done until **all** of the following pass:
    ```
    On macOS additionally:
    ```bash
-   ls "$HOME/Library/Fonts" | grep -c '^MesloLGS NF '   # must print 0
+   system_profiler SPFontsDataType | grep -ci MesloLGS   # must be > 0
    ```
    On Linux additionally:
    ```bash
@@ -31,12 +31,14 @@ A change to `setup.sh` is not done until **all** of the following pass:
 3. **Fresh-machine smoke (when reasonably possible):**
    - Run `setup.sh` on a clean macOS VM **and** on a clean Linux VM
      (Debian/Ubuntu, Fedora, or Arch).
-   - Open a new terminal — the prompt is Powerlevel10k "lean", icons
-     render.
-   - `command -v eza tmux nvim fzf` all resolve.
+   - Open a new terminal — the prompt uses the saved Powerlevel10k
+     configuration and icons render after completing `p10k configure`.
+   - `command -v eza tmux nvim fzf rg jq htop tree wget expect` all
+     resolve; `fd` may resolve as `fdfind` and `bat` may resolve as
+     `batcat` on Debian-family systems.
    - macOS only: `command -v duti` resolves;
      `defaults read com.googlecode.iterm2 'New Bookmarks' | grep -E 'Normal Font|Background Color'`
-     shows `MesloLGSDZNF-Regular 13` and the dark color dict.
+     shows a Meslo font and the dark color dict.
 
 4. **Icon sanity:** in a new terminal window, `echo $'\uf015 \uf07b \ue0a0'`
    must render three Nerd Font glyphs (house, folder, git branch),
@@ -44,12 +46,16 @@ A change to `setup.sh` is not done until **all** of the following pass:
 
 ## Negative fixtures (intentionally NOT tested)
 
-- Windows / WSL — script asserts `darwin*` or `linux*` and exits on
-  anything else.
+- Native Windows PowerShell / Command Prompt — script asserts `darwin*`
+  or `linux*` and exits on anything else. WSL is covered by the Linux
+  smoke path, with Windows Terminal font selection done manually.
 - Linux distros without apt/dnf/pacman — script logs a warning, sets
   `DISTRO=unknown`, and skips package installs (Oh My Zsh +
   Powerlevel10k + managed `~/.zshrc` still install).
 - Offline mode — Homebrew / apt / curl steps will fail; expected.
+- Full automation of the interactive Powerlevel10k wizard — setup sends
+  the first `y` at the Meslo Nerd Font prompt via `expect`, then the
+  operator completes the remaining visual choices.
 
 ## Verification command (one-liner, safe everywhere)
 

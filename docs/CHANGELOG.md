@@ -7,6 +7,15 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- Interactive `p10k configure` handoff at the end of setup so the user
+  can accept the official Meslo Nerd Font prompt and validate icons in a
+  fresh terminal window.
+- `expect`-driven first-answer automation for the Powerlevel10k Meslo
+  prompt, followed by manual control for the rest of the wizard.
+- WSL detection note that routes Windows users through the Linux path
+  and tells them to set Windows Terminal's font face manually.
+- Additional productivity CLIs: `ripgrep`, `fd`, `bat`, `jq`, `htop`,
+  `tree`, `wget`, and `expect`.
 - **Linux support** (Debian/Ubuntu via apt, Fedora via dnf, Arch via
   pacman). Cross-platform `pkg_install` helper abstracts the package
   manager so the rest of the script stays single-track.
@@ -20,6 +29,15 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   path on either OS.
 
 ### Changed
+- macOS iTerm2 configuration no longer quits iTerm2 from inside the
+  running setup process; setup opens a fresh iTerm2 window at the final
+  validation step instead.
+- Powerlevel10k setup now prefers the interactive wizard over silently
+  copying the lean preset.
+- macOS setup preserves Powerlevel10k-installed `MesloLGS NF` files on
+  re-run instead of treating them as stale.
+- Debian-family shells alias `fd` to `fdfind` and `bat` to `batcat`
+  when needed so the public command names stay portable.
 - Pre-flight no longer hard-fails on Linux. macOS-only steps (iTerm2,
   Terminal.app, duti, PlistBuddy) are now gated behind
   `if [[ "$OS" == "macos" ]]` and skipped on Linux.
