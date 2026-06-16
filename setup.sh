@@ -138,6 +138,16 @@ APPLESCRIPT
 # ---------------------------------------------------------------------------
 # Cross-platform package installer
 # ---------------------------------------------------------------------------
+brew_install_formula() {
+    local pkg="$1"
+    printf 'y\n' | HOMEBREW_NO_ASK=1 brew install --formula --yes "$pkg"
+}
+
+brew_install_cask() {
+    local cask="$1"
+    printf 'y\n' | HOMEBREW_NO_ASK=1 brew install --cask --yes "$cask"
+}
+
 pkg_install() {
     # Usage: pkg_install <macos-brew-pkg> <debian-pkg> <fedora-pkg> <arch-pkg>
     # Pass "-" to skip a platform.
@@ -146,7 +156,7 @@ pkg_install() {
         macos)
             [[ "$mac_pkg" == "-" ]] && return 0
             brew list "$mac_pkg" &>/dev/null && return 0
-            HOMEBREW_NO_ASK=1 brew install --formula --no-ask "$mac_pkg"
+            brew_install_formula "$mac_pkg"
             ;;
         linux)
             case "$DISTRO" in
@@ -268,7 +278,7 @@ if [[ "$OS" == "macos" ]]; then
     if brew list --cask font-meslo-lg-nerd-font &>/dev/null; then
         echo "MesloLGS Nerd Font already installed."
     else
-        HOMEBREW_NO_ASK=1 brew install --cask --no-ask font-meslo-lg-nerd-font
+        brew_install_cask font-meslo-lg-nerd-font
     fi
     echo "Powerlevel10k may also install official MesloLGS NF files during configure."
 else
@@ -306,7 +316,7 @@ verify_meslo_font
 if [[ "$OS" == "macos" ]]; then
     if [ ! -d "/Applications/iTerm.app" ] && ! brew list --cask iterm2 &>/dev/null; then
         echo "Installing iTerm2..."
-        HOMEBREW_NO_ASK=1 brew install --cask --no-ask iterm2
+        brew_install_cask iterm2
     else
         echo "iTerm2 already installed."
     fi
@@ -356,7 +366,7 @@ APPLESCRIPT
 
     echo "Setting iTerm2 as the default terminal handler..."
     if ! command -v duti &>/dev/null; then
-        HOMEBREW_NO_ASK=1 brew install --formula --no-ask duti
+        brew_install_formula duti
     fi
     ITERM_BUNDLE_ID="com.googlecode.iterm2"
     duti -s "$ITERM_BUNDLE_ID" public.unix-executable           all 2>/dev/null || true

@@ -25,7 +25,8 @@ turbo-term/
 3. **Package manager** — install Homebrew on macOS; refresh apt cache
    on Debian/Ubuntu. A `pkg_install` helper abstracts brew / apt /
    dnf / pacman so the rest of the script stays single-track. macOS
-   formula and cask installs pass Homebrew's no-ask mode.
+   formula and cask installs use a scoped `y` pipe plus Homebrew's
+   no-ask mode.
 4. **CLI tools** — `zsh git curl tmux vim neovim fzf autojump eza
    ripgrep fd bat jq htop tree wget expect` plus zsh
    syntax-highlighting + autosuggestions plugins, installed via the
