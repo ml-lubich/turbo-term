@@ -6,7 +6,18 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-16
+
 ### Added
+- Automated glyph preview at the end of setup (renders U+F015 / U+F07B /
+  U+E0A0) so the icon check happens automatically instead of as a manual
+  copy-paste step.
+- OS-aware "Next steps" output (macOS / Linux / WSL) that replaces the
+  static all-platforms notice, plus a cross-platform manual fallback
+  block for emulators whose font cannot be set programmatically.
+- Best-effort GNOME Terminal font auto-config on Linux via `gsettings`
+  (sets the default profile to `MesloLGS NF 12`).
+- `VERSION` file (single source of truth, aligned with the git tag).
 - Interactive `p10k configure` handoff at the end of setup so the user
   can accept the official Meslo Nerd Font prompt and validate icons in a
   fresh terminal window.
