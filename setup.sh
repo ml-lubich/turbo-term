@@ -140,12 +140,12 @@ APPLESCRIPT
 # ---------------------------------------------------------------------------
 brew_install_formula() {
     local pkg="$1"
-    printf 'y\n' | HOMEBREW_NO_ASK=1 brew install --formula --yes "$pkg"
+    yes | HOMEBREW_NO_ASK=1 brew install --formula --yes "$pkg"
 }
 
 brew_install_cask() {
     local cask="$1"
-    printf 'y\n' | HOMEBREW_NO_ASK=1 brew install --cask --yes "$cask"
+    yes | HOMEBREW_NO_ASK=1 brew install --cask --yes "$cask"
 }
 
 pkg_install() {

@@ -13,7 +13,7 @@ zsh ./setup.sh
 - Must run interactively (the backup step and Powerlevel10k wizard
   prompt for confirmation).
 - Homebrew package and cask installs run with `--yes` plus a scoped
-  `y` pipe; they must not prompt for install confirmation.
+  `yes` pipe; they must not prompt for install confirmation.
 - Requires network access (Homebrew or distro repos, Oh My Zsh
   installer, Powerlevel10k git clone, Nerd Font download on Linux).
 - On Linux, expects `sudo` to be available unless invoked as root.

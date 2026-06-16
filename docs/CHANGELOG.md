@@ -38,7 +38,7 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   re-run instead of treating them as stale.
 - Debian-family shells alias `fd` to `fdfind` and `bat` to `batcat`
   when needed so the public command names stay portable.
-- Homebrew formula/cask installs now pass no-ask mode and a scoped `y`
+- Homebrew formula/cask installs now pass no-ask mode and a scoped `yes`
   pipe so setup does not pause at install confirmation prompts.
 - Pre-flight no longer hard-fails on Linux. macOS-only steps (iTerm2,
   Terminal.app, duti, PlistBuddy) are now gated behind
